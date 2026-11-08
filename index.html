@@ -1,0 +1,1565 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>漢字インベーダー - Kanji Invaders</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Google Fonts: VT323 & Press Start 2P & Zen Kaku Gothic New -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=Zen+Kaku+Gothic+New:wght@500;700;900&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      font-family: 'Zen Kaku Gothic New', sans-serif;
+      background-color: #05060b;
+      color: #f1f5f9;
+      overflow-x: hidden;
+      touch-action: manipulation;
+    }
+    .font-arcade {
+      font-family: 'Press Start 2P', monospace;
+    }
+    .font-vt {
+      font-family: 'VT323', monospace;
+    }
+
+    /* レトロネオングロー */
+    .neon-text-green {
+      text-shadow: 0 0 5px #00ffcc, 0 0 10px #00ffcc, 0 0 20px #00ff88;
+    }
+    .neon-text-pink {
+      text-shadow: 0 0 5px #ff007f, 0 0 10px #ff007f, 0 0 20px #ff0055;
+    }
+    .neon-box-green {
+      box-shadow: 0 0 10px rgba(0, 255, 204, 0.4), inset 0 0 8px rgba(0, 255, 204, 0.2);
+    }
+    .neon-box-pink {
+      box-shadow: 0 0 10px rgba(255, 0, 127, 0.4), inset 0 0 8px rgba(255, 0, 127, 0.2);
+    }
+
+    /* 点滅アニメーション */
+    @keyframes pulseDanger {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.7; transform: scale(1.05); }
+    }
+    .danger-pulse {
+      animation: pulseDanger 0.8s infinite ease-in-out;
+    }
+
+    /* 80%縮小表示コンテナ */
+    .game-scale-wrapper {
+      transform-origin: top center;
+      transform: scale(0.85);
+      margin-bottom: -10%;
+    }
+    @media (max-width: 640px) {
+      .game-scale-wrapper {
+        transform: scale(0.92);
+        margin-bottom: -5%;
+      }
+    }
+  </style>
+</head>
+<body class="flex flex-col items-center justify-start min-h-screen p-2 sm:p-4 select-none">
+
+  <!-- 全体80%スケールラッパー -->
+  <div class="game-scale-wrapper w-full max-w-4xl flex flex-col items-center">
+
+    <!-- ゲームヘッダー（スコア・難易度・ライフ） -->
+    <header class="w-full bg-stone-900/90 border border-emerald-500/50 rounded-2xl p-2.5 sm:p-3 mb-2 flex items-center justify-between shadow-lg backdrop-blur-md">
+      <!-- スコア & コンボ -->
+      <div class="flex items-center gap-3">
+        <div class="flex flex-col">
+          <span class="text-[10px] text-emerald-400 font-arcade">SCORE</span>
+          <span id="scoreText" class="text-lg sm:text-xl font-bold font-arcade text-emerald-300">00000</span>
+        </div>
+        <div class="flex flex-col">
+          <span class="text-[10px] text-amber-400 font-arcade">COMBO</span>
+          <span id="comboText" class="text-sm sm:text-base font-bold font-arcade text-amber-300">x1</span>
+        </div>
+        <!-- 難易度バッジ -->
+        <div class="flex flex-col ml-1">
+          <span class="text-[9px] text-stone-400 font-arcade">DIFF</span>
+          <span id="diffBadgeText" class="text-xs sm:text-sm font-bold px-2 py-0.5 rounded-lg bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 font-arcade">中級</span>
+        </div>
+      </div>
+
+      <!-- タイトルロゴ -->
+      <div class="text-center hidden sm:block">
+        <h1 class="text-lg font-bold tracking-widest neon-text-green text-emerald-300 flex items-center justify-center gap-2">
+          <span>👾</span> <span>漢字インベーダー</span> <span>🛸</span>
+        </h1>
+        <p class="text-[10px] text-emerald-500">読み・漢字どちらでも迎撃可能！</p>
+      </div>
+
+      <!-- 残機 & 防衛ライン耐久 -->
+      <div class="flex items-center gap-3">
+        <div class="flex flex-col items-end">
+          <span class="text-[10px] text-rose-400 font-arcade">SHIELD</span>
+          <div id="livesContainer" class="flex gap-1 mt-0.5 text-base sm:text-lg text-rose-500">
+            <i class="fa-solid fa-shield-heart"></i>
+            <i class="fa-solid fa-shield-heart"></i>
+            <i class="fa-solid fa-shield-heart"></i>
+          </div>
+        </div>
+        <div class="flex flex-col items-end">
+          <span class="text-[10px] text-cyan-400 font-arcade">WAVE</span>
+          <span id="waveText" class="text-sm sm:text-base font-bold font-arcade text-cyan-300">01</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Canvas ゲームメインスクリーン -->
+    <div class="relative w-full aspect-[4/3] max-h-[500px] bg-black rounded-2xl overflow-hidden border-2 border-emerald-500/60 shadow-[0_0_20px_rgba(0,255,204,0.2)]">
+      <canvas id="gameCanvas" class="w-full h-full block"></canvas>
+
+      <!-- ゲーム内オーバーレイ（メニュー・ポーズ・ゲームオーバー） -->
+      <div id="gameOverlay" class="absolute inset-0 bg-stone-950/90 backdrop-blur-md flex flex-col items-center justify-center p-4 text-center z-30 transition-all">
+        <div id="overlayIcon" class="text-4xl text-emerald-400 mb-2">
+          <i class="fa-solid fa-shuttle-space"></i>
+        </div>
+        <h2 id="overlayTitle" class="text-2xl sm:text-3xl font-bold mb-2 neon-text-green text-emerald-300 tracking-wider">
+          漢字インベーダー
+        </h2>
+        <p id="overlayDesc" class="text-xs sm:text-sm text-stone-300 max-w-md leading-relaxed mb-3">
+          上空から迫る「漢字」の読み（ふりがな・ローマ字・漢字変換）を入力して、地球防衛キャノンから迎撃ビームを発射せよ！
+        </p>
+
+        <!-- 難易度選択メニュー（初級・中級・上級） -->
+        <div id="difficultySelector" class="w-full max-w-xs mb-3">
+          <label class="text-[11px] font-bold text-emerald-400 block mb-1.5 tracking-wider">▼ 難易度を選択</label>
+          <div class="grid grid-cols-3 gap-2">
+            <button type="button" data-diff="easy" class="diff-btn py-1.5 px-2 rounded-xl border border-emerald-500/40 bg-stone-900/80 text-xs font-bold text-stone-300 transition hover:border-emerald-400 flex flex-col items-center">
+              <span>初級</span>
+              <span class="text-[9px] text-stone-400 font-normal">ヒント有・低速</span>
+              <span class="text-[9px] text-amber-300 mt-1 font-mono font-bold hi-score-badge" id="hiScore-easy">HI: 0</span>
+            </button>
+            <button type="button" data-diff="normal" class="diff-btn py-1.5 px-2 rounded-xl border-2 border-emerald-400 bg-emerald-950/70 text-xs font-bold text-emerald-300 transition shadow-[0_0_10px_rgba(0,255,204,0.3)] flex flex-col items-center">
+              <span>中級</span>
+              <span class="text-[9px] text-emerald-400/80 font-normal">標準バランス</span>
+              <span class="text-[9px] text-amber-300 mt-1 font-mono font-bold hi-score-badge" id="hiScore-normal">HI: 0</span>
+            </button>
+            <button type="button" data-diff="hard" class="diff-btn py-1.5 px-2 rounded-xl border border-rose-500/40 bg-stone-900/80 text-xs font-bold text-stone-300 transition hover:border-rose-400 flex flex-col items-center">
+              <span>上級</span>
+              <span class="text-[9px] text-stone-400 font-normal">ノーヒント・高速</span>
+              <span class="text-[9px] text-amber-300 mt-1 font-mono font-bold hi-score-badge" id="hiScore-hard">HI: 0</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- ルール簡易ガイド -->
+        <div class="grid grid-cols-2 gap-2 text-left bg-stone-900/90 border border-emerald-500/40 rounded-xl p-3 max-w-sm mb-4 text-[11px] text-stone-300">
+          <div><span class="text-emerald-400 font-bold">● 入力方法:</span> ひらがな／ローマ字／漢字</div>
+          <div><span class="text-amber-400 font-bold">● 高度スコア:</span> 上空撃破100点〜低空20点</div>
+          <div><span class="text-cyan-400 font-bold">● コンボ:</span> 連続撃破でスコア倍率UP</div>
+          <div><span class="text-rose-400 font-bold">● 危険:</span> 防衛ライン突破でシールド減少</div>
+        </div>
+
+        <button id="startBtn" class="px-8 py-3 bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-stone-950 font-black rounded-2xl text-base sm:text-lg tracking-wider transition transform active:scale-95 shadow-lg border-2 border-emerald-300 cursor-pointer flex items-center gap-2">
+          <i class="fa-solid fa-play"></i>
+          <span>出撃する（START）</span>
+        </button>
+      </div>
+
+      <!-- 危険アラートバナー（インベーダーが近づいた時） -->
+      <div id="dangerBanner" class="absolute top-3 left-1/2 -translate-x-1/2 hidden bg-rose-600/80 text-rose-100 border border-rose-300 text-xs px-3 py-1 rounded-full font-bold danger-pulse pointer-events-none">
+        ⚠️ WARNING: インベーダー接近中！
+      </div>
+
+      <!-- ボス出現警告バナー -->
+      <div id="bossAlertBanner" class="absolute inset-x-0 top-1/4 hidden flex-col items-center justify-center bg-rose-950/80 border-y-2 border-rose-500 py-3 pointer-events-none z-20">
+        <div class="text-rose-400 font-arcade text-xs tracking-widest danger-pulse">WARNING: BOSS DETECTED</div>
+        <div id="bossAlertName" class="text-amber-300 font-black text-xl sm:text-2xl mt-1 tracking-wider">【魔王】が出現！</div>
+      </div>
+    </div>
+
+    <!-- コントロール・入力エリア -->
+    <div class="w-full mt-3 flex items-center gap-2">
+      <!-- 迎撃テキスト入力欄 -->
+      <div class="relative flex-grow">
+        <input
+          type="text"
+          id="kanjiInput"
+          placeholder="漢字・よみ（例: ほのお、山、mizu）を入力..."
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="off"
+          spellcheck="false"
+          disabled
+          class="w-full px-4 py-3 bg-stone-900 border-2 border-emerald-500/70 focus:border-emerald-400 text-emerald-200 text-base sm:text-lg rounded-2xl font-bold tracking-wider outline-none placeholder-stone-500 transition shadow-[0_0_12px_rgba(0,255,204,0.2)]"
+        />
+        <!-- 入力クリア・送信支援 -->
+        <button id="fireBtn" class="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-stone-950 rounded-xl font-bold text-xs tracking-wider transition active:scale-95 cursor-pointer">
+          撃破 ↵
+        </button>
+      </div>
+
+      <!-- 補助ボタン群（サウンド切替、ポーズ、QUIT） -->
+      <button id="soundToggleBtn" class="p-3 bg-stone-900 border border-stone-700 hover:border-emerald-500 text-emerald-400 rounded-2xl text-base transition active:scale-95 cursor-pointer" title="サウンド切替">
+        <i class="fa-solid fa-volume-high"></i>
+      </button>
+      <button id="pauseBtn" class="p-3 bg-stone-900 border border-stone-700 hover:border-amber-500 text-amber-400 rounded-2xl text-base transition active:scale-95 cursor-pointer" title="一時停止">
+        <i class="fa-solid fa-pause"></i>
+      </button>
+      <button id="quitBtn" onclick="quitGame()" class="p-3 bg-stone-900 border border-stone-700 hover:border-rose-500 text-rose-400 rounded-2xl text-base transition active:scale-95 cursor-pointer" title="終了してメニューへ戻る">
+        <i class="fa-solid fa-door-open"></i>
+      </button>
+    </div>
+
+    <!-- 候補ターゲットプレビュー -->
+    <div class="w-full mt-2 flex items-center justify-between px-2 text-xs text-stone-400 font-mono">
+      <div id="targetHint" class="flex items-center gap-1 text-[11px] truncate">
+        <span class="text-emerald-500">ロックオン可能:</span>
+        <span id="activeInvaderList" class="text-stone-300 font-bold">待機中</span>
+      </div>
+      <div class="text-[11px] text-stone-500">
+        キーボード Enter / 変換で撃破
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ゲーム内ロジック & Web Audio 音響 -->
+  <script>
+    /* ==========================================================
+       1. 漢字インベーダーの難易度別辞書データベース
+       ========================================================== */
+    // --- 初級用漢字（24字：小学校低学年レベル・直感的） ---
+    const KANJI_EASY = [
+      { kanji: '火', readings: ['ひ', 'か', 'ほ'], romaji: ['hi', 'ka', 'ho'], hint: 'ひ・か' },
+      { kanji: '水', readings: ['みず', 'すい'], romaji: ['mizu', 'sui'], hint: 'みず・すい' },
+      { kanji: '木', readings: ['き', 'もく', 'ぼく'], romaji: ['ki', 'moku', 'boku'], hint: 'き・もく' },
+      { kanji: '金', readings: ['きん', 'かね'], romaji: ['kin', 'kane'], hint: 'きん・かね' },
+      { kanji: '土', readings: ['つち', 'ど', 'と'], romaji: ['tsuchi', 'do', 'to'], hint: 'つち・ど' },
+      { kanji: '山', readings: ['やま', 'さん', 'ざん'], romaji: ['yama', 'san', 'zan'], hint: 'やま・さん' },
+      { kanji: '川', readings: ['かわ', 'せん'], romaji: ['kawa', 'sen'], hint: 'かわ・せん' },
+      { kanji: '日', readings: ['ひ', 'にち', 'じつ'], romaji: ['hi', 'nichi', 'jitsu'], hint: 'ひ・にち' },
+      { kanji: '月', readings: ['つき', 'げつ', 'がつ'], romaji: ['tsuki', 'getsu', 'gatu'], hint: 'つき・げつ' },
+      { kanji: '空', readings: ['そら', 'くう'], romaji: ['sora', 'kuu'], hint: 'そら・くう' },
+      { kanji: '雨', readings: ['あめ', 'う'], romaji: ['ame', 'u'], hint: 'あめ・う' },
+      { kanji: '花', readings: ['はな', 'か'], romaji: ['hana', 'ka'], hint: 'はな・か' },
+      { kanji: '草', readings: ['くさ', 'そう'], romaji: ['kusa', 'sou'], hint: 'くさ・そう' },
+      { kanji: '犬', readings: ['いぬ', 'けん'], romaji: ['inu', 'ken'], hint: 'いぬ・けん' },
+      { kanji: '猫', readings: ['ねこ', 'びょう'], romaji: ['neko', 'byou'], hint: 'ねこ・びょう' },
+      { kanji: '鳥', readings: ['とり', 'ちょう'], romaji: ['tori', 'chou'], hint: 'とり・ちょう' },
+      { kanji: '魚', readings: ['さかな', 'ぎょ', 'うお'], romaji: ['sakana', 'gyo', 'uo'], hint: 'さかな・ぎょ' },
+      { kanji: '目', readings: ['め', 'もく'], romaji: ['me', 'moku'], hint: 'め・もく' },
+      { kanji: '手', readings: ['て', 'しゅ'], romaji: ['te', 'shu', 'syu'], hint: 'て・しゅ' },
+      { kanji: '足', readings: ['あし', 'そく'], romaji: ['ashi', 'soku', 'asi'], hint: 'あし・そく' },
+      { kanji: '石', readings: ['いし', 'せき'], romaji: ['ishi', 'seki', 'isi'], hint: 'いし・せき' },
+      { kanji: '竹', readings: ['たけ', 'ちく'], romaji: ['take', 'chiku'], hint: 'たけ・ちく' },
+      { kanji: '虫', readings: ['むし', 'ちゅう'], romaji: ['mushi', 'chuu', 'musi'], hint: 'むし・ちゅう' },
+      { kanji: '車', readings: ['くるま', 'しゃ'], romaji: ['kuruma', 'sha', 'sya'], hint: 'くるま・しゃ' }
+    ];
+
+    // --- 中級用漢字（初級＋36字＝合計60字：常用漢字・自然・戦い・感情） ---
+    const KANJI_MEDIUM_EXT = [
+      { kanji: '風', readings: ['かぜ', 'ふう'], romaji: ['kaze', 'fuu', 'huu'], hint: 'かぜ・ふう' },
+      { kanji: '雷', readings: ['かみなり', 'らい'], romaji: ['kaminari', 'rai'], hint: 'かみなり・らい' },
+      { kanji: '光', readings: ['ひかり', 'こう'], romaji: ['hikari', 'kou'], hint: 'ひかり・こう' },
+      { kanji: '闇', readings: ['やみ', 'あん'], romaji: ['yami', 'an'], hint: 'やみ・あん' },
+      { kanji: '海', readings: ['うみ', 'かい'], romaji: ['umi', 'kai'], hint: 'うみ・かい' },
+      { kanji: '森', readings: ['もり', 'しん'], romaji: ['mori', 'shin', 'sin'], hint: 'もり・しん' },
+      { kanji: '星', readings: ['ほし', 'せい'], romaji: ['hoshi', 'sei', 'hosi'], hint: 'ほし・せい' },
+      { kanji: '雲', readings: ['くも', 'うん'], romaji: ['kumo', 'un'], hint: 'くも・うん' },
+      { kanji: '雪', readings: ['ゆき', 'せつ'], romaji: ['yuki', 'setsu'], hint: 'ゆき・せつ' },
+      { kanji: '氷', readings: ['こおり', 'ひょう'], romaji: ['koori', 'hyou'], hint: 'こおり・ひょう' },
+      { kanji: '炎', readings: ['ほのお', 'えん'], romaji: ['honoo', 'en'], hint: 'ほのお・えん' },
+      { kanji: '刀', readings: ['かたな', 'とう'], romaji: ['katana', 'tou'], hint: 'かたな・とう' },
+      { kanji: '弓', readings: ['ゆみ', 'きゅう'], romaji: ['yumi', 'kyuu'], hint: 'ゆみ・きゅう' },
+      { kanji: '矢', readings: ['や', 'し'], romaji: ['ya', 'shi', 'si'], hint: 'や・し' },
+      { kanji: '盾', readings: ['たて', 'じゅん'], romaji: ['tate', 'jun'], hint: 'たて・じゅん' },
+      { kanji: '波', readings: ['なみ', 'は'], romaji: ['nami', 'ha'], hint: 'なみ・は' },
+      { kanji: '心', readings: ['こころ', 'しん'], romaji: ['kokoro', 'shin', 'sin'], hint: 'こころ・しん' },
+      { kanji: '力', readings: ['ちから', 'りょく', 'りき'], romaji: ['chikara', 'ryoku', 'riki'], hint: 'ちから・りょく' },
+      { kanji: '勝', readings: ['かつ', 'しょう'], romaji: ['katsu', 'shou'], hint: 'かつ・しょう' },
+      { kanji: '勇', readings: ['ゆう', 'いさむ'], romaji: ['yuu', 'isamu'], hint: 'ゆう' },
+      { kanji: '夢', readings: ['ゆめ', 'む'], romaji: ['yume', 'mu'], hint: 'ゆめ・む' },
+      { kanji: '愛', readings: ['あい'], romaji: ['ai'], hint: 'あい' },
+      { kanji: '鬼', readings: ['おに', 'き'], romaji: ['oni', 'ki'], hint: 'おに・き' },
+      { kanji: '王', readings: ['おう'], romaji: ['ou'], hint: 'おう' },
+      { kanji: '神', readings: ['かみ', 'しん', 'じん'], romaji: ['kami', 'shin', 'jin'], hint: 'かみ・しん' },
+      { kanji: '竜', readings: ['りゅう', 'たつ'], romaji: ['ryuu', 'tatsu'], hint: 'りゅう・たつ' },
+      { kanji: '虎', readings: ['とら', 'こ'], romaji: ['tora', 'ko'], hint: 'とら・こ' },
+      { kanji: '侍', readings: ['さむらい', 'じ'], romaji: ['samurai', 'ji'], hint: 'さむらい・じ' },
+      { kanji: '忍', readings: ['しのぶ', 'にん'], romaji: ['shinobu', 'nin'], hint: 'しのぶ・にん' },
+      { kanji: '桜', readings: ['さくら', 'おう'], romaji: ['sakura', 'ou'], hint: 'さくら・おう' },
+      { kanji: '影', readings: ['かげ', 'えい'], romaji: ['kage', 'ei'], hint: 'かげ・えい' },
+      { kanji: '鏡', readings: ['かがみ', 'きょう'], romaji: ['kagami', 'kyou'], hint: 'かがみ・きょう' },
+      { kanji: '虹', readings: ['にじ', 'こう'], romaji: ['niji', 'kou'], hint: 'にじ・こう' },
+      { kanji: '翼', readings: ['つばさ', 'よく'], romaji: ['tsubasa', 'yoku'], hint: 'つばさ・よく' },
+      { kanji: '命', readings: ['いのち', 'めい'], romaji: ['inochi', 'mei'], hint: 'いのち・めい' },
+      { kanji: '絆', readings: ['きずな', 'はん'], romaji: ['kizuna', 'han'], hint: 'きずな' }
+    ];
+
+    // --- 上級用漢字（中級＋34字＝合計94字以上：難読・強敵・熟語） ---
+    const KANJI_HARD_EXT = [
+      { kanji: '剣', readings: ['けん', 'つるぎ'], romaji: ['ken', 'tsurugi'], hint: 'けん・つるぎ' },
+      { kanji: '龍', readings: ['りゅう', 'たつ'], romaji: ['ryuu', 'tatsu'], hint: 'りゅう・たつ' },
+      { kanji: '鳳', readings: ['おおとり', 'ほう'], romaji: ['ootori', 'hou'], hint: 'おおとり・ほう' },
+      { kanji: '凰', readings: ['こう', 'おおとり'], romaji: ['kou', 'ootori'], hint: 'こう・おおとり' },
+      { kanji: '覇', readings: ['は'], romaji: ['ha'], hint: 'は' },
+      { kanji: '滅', readings: ['めつ', 'ほろぶ'], romaji: ['metsu', 'horobu'], hint: 'めつ' },
+      { kanji: '撃', readings: ['げき', 'うつ'], romaji: ['geki', 'utsu'], hint: 'げき・うつ' },
+      { kanji: '破', readings: ['は', 'やぶる'], romaji: ['ha', 'yaburu'], hint: 'は' },
+      { kanji: '斬', readings: ['ざん', 'きる'], romaji: ['zan', 'kiru'], hint: 'ざん・きる' },
+      { kanji: '爆', readings: ['ばく'], romaji: ['baku'], hint: 'ばく' },
+      { kanji: '裂', readings: ['れつ', 'さく'], romaji: ['retsu', 'saku'], hint: 'れつ・さく' },
+      { kanji: '砕', readings: ['さい', 'くだく'], romaji: ['sai', 'kudaku'], hint: 'さい・くだく' },
+      { kanji: '無', readings: ['む', 'ない'], romaji: ['mu', 'nai'], hint: 'む・ない' },
+      { kanji: '魔', readings: ['ま'], romaji: ['ma'], hint: 'ま' },
+      { kanji: '帝', readings: ['てい', 'みかど'], romaji: ['tei', 'mikado'], hint: 'てい・みかど' },
+      { kanji: '獄', readings: ['ごく'], romaji: ['goku'], hint: 'ごく' },
+      { kanji: '吼', readings: ['こう', 'ほえる'], romaji: ['kou', 'hoeru'], hint: 'こう・ほえる' },
+      { kanji: '轟', readings: ['ごう', 'とどろく'], romaji: ['gou', 'todoroku'], hint: 'ごう・とどろく' },
+      { kanji: '閃', readings: ['せん', 'ひらめく'], romaji: ['sen', 'hirameku'], hint: 'せん・ひらめく' },
+      { kanji: '幻', readings: ['まぼろし', 'げん'], romaji: ['maboroshi', 'gen', 'maborosi'], hint: 'まぼろし・げん' },
+      { kanji: '魂', readings: ['たましい', 'こん'], romaji: ['tamashii', 'kon', 'tamasii'], hint: 'たましい・こん' },
+      { kanji: '鎧', readings: ['よろい', 'がい'], romaji: ['yoroi', 'gai'], hint: 'よろい・がい' },
+      { kanji: '兜', readings: ['かぶと', 'とう'], romaji: ['kabuto', 'tou'], hint: 'かぶと・とう' },
+      { kanji: '矛', readings: ['ほこ', 'む'], romaji: ['hoko', 'mu'], hint: 'ほこ' },
+      { kanji: '渦', readings: ['うず', 'か'], romaji: ['uzu', 'ka'], hint: 'うず・か' },
+      { kanji: '雫', readings: ['しずく', 'だ'], romaji: ['shizuku', 'da', 'sizuku'], hint: 'しずく' },
+      { kanji: '雷霆', readings: ['らいてい'], romaji: ['raitei'], hint: 'らいてい' },
+      { kanji: '刹那', readings: ['せつな'], romaji: ['setsuna'], hint: 'せつな' },
+      { kanji: '悠久', readings: ['ゆうきゅう'], romaji: ['yuukyuu'], hint: 'ゆうきゅう' },
+      { kanji: '漆黒', readings: ['しっこく'], romaji: ['shikkoku', 'sikkoku'], hint: 'しっこく' },
+      { kanji: '深淵', readings: ['しんえん'], romaji: ['shin\'en', 'shinen'], hint: 'しんえん' },
+      { kanji: '羅刹', readings: ['らせつ'], romaji: ['rasetsu'], hint: 'らせつ' },
+      { kanji: '修羅', readings: ['しゅら'], romaji: ['shura', 'syura'], hint: 'しゅら' },
+      { kanji: '阿修羅', readings: ['あしゅら'], romaji: ['ashura', 'asyura'], hint: 'あしゅら' }
+    ];
+
+    // --- ボス専用漢字（大型・強敵熟語） ---
+    const BOSS_KANJI = [
+      { kanji: '魔王', readings: ['まおう'], romaji: ['maou', 'maoo'], hint: 'まおう', title: '深淵の魔王' },
+      { kanji: '覇王', readings: ['はおう'], romaji: ['haou', 'haoo'], hint: 'はおう', title: '全界の覇王' },
+      { kanji: '破壊', readings: ['はかい'], romaji: ['hakai'], hint: 'はかい', title: '破壊神' },
+      { kanji: '雷神', readings: ['らいじん'], romaji: ['raijin'], hint: 'らいじん', title: '天罰の雷神' },
+      { kanji: '風神', readings: ['ふうじん'], romaji: ['fuujin', 'huujin'], hint: 'ふうじん', title: '暴風の神' },
+      { kanji: '黒龍', readings: ['こくりゅう'], romaji: ['kokuryuu', 'kokuryu'], hint: 'こくりゅう', title: '暗黒古龍' },
+      { kanji: '白虎', readings: ['びゃっこ'], romaji: ['byakko'], hint: 'びゃっこ', title: '四神白虎' },
+      { kanji: '玄武', readings: ['げんぶ'], romaji: ['genbu'], hint: 'げんぶ', title: '重装玄武' },
+      { kanji: '朱雀', readings: ['すざく'], romaji: ['suzaku'], hint: 'すざく', title: '不死鳥朱雀' },
+      { kanji: '殲滅', readings: ['せんめつ'], romaji: ['senmetsu', 'senmetu'], hint: 'せんめつ', title: '要塞機甲' },
+      { kanji: '天魔', readings: ['てんま'], romaji: ['tenma'], hint: 'てんま', title: '第六天魔' },
+      { kanji: '修羅', readings: ['しゅら'], romaji: ['shura', 'syura'], hint: 'しゅら', title: '闘争修羅' },
+      { kanji: '冥王', readings: ['めいおう'], romaji: ['meiou', 'meioo'], hint: 'めいおう', title: '冥府の王' },
+      { kanji: '虚無', readings: ['きょむ'], romaji: ['kyomu'], hint: 'きょむ', title: '虚無の特異点' }
+    ];
+
+    /* ==========================================================
+       2. Web Audio API サウンドシステム（BGM & 恐怖ボスBGM）
+       ========================================================== */
+    class RetroSoundSystem {
+      constructor() {
+        this.ctx = null;
+        this.soundEnabled = true;
+        this.bgmTimer = null;
+        this.isBossBGM = false;
+        this.bgmStep = 0;
+        this.bgmTempo = 135; // BPM
+      }
+
+      init() {
+        if (!this.ctx) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (AudioContext) {
+            this.ctx = new AudioContext();
+          }
+        }
+        if (this.ctx && this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+      }
+
+      playTone(freq, type, duration, gainVal = 0.1, pitchDecay = 0) {
+        if (!this.soundEnabled || !this.ctx) return;
+        try {
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+
+          osc.type = type;
+          osc.frequency.setValueAtTime(freq, now);
+          if (pitchDecay !== 0) {
+            osc.frequency.exponentialRampToValueAtTime(Math.max(10, freq + pitchDecay), now + duration);
+          }
+
+          gain.gain.setValueAtTime(gainVal, now);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+
+          osc.start(now);
+          osc.stop(now + duration);
+        } catch (e) {
+          // オーディオエラーの静的無視
+        }
+      }
+
+      playLaser() {
+        this.playTone(880, 'sawtooth', 0.15, 0.12, -600);
+      }
+
+      playExplosion() {
+        if (!this.soundEnabled || !this.ctx) return;
+        try {
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'square';
+          osc.frequency.setValueAtTime(140, now);
+          osc.frequency.exponentialRampToValueAtTime(30, now + 0.35);
+
+          gain.gain.setValueAtTime(0.2, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.35);
+        } catch (e) {}
+      }
+
+      playBossHit() {
+        this.playTone(220, 'square', 0.18, 0.18, -120);
+      }
+
+      playDamage() {
+        this.playTone(90, 'sawtooth', 0.45, 0.25, -60);
+      }
+
+      playWaveClear() {
+        const notes = [523.25, 659.25, 783.99, 1046.50];
+        notes.forEach((freq, idx) => {
+          setTimeout(() => this.playTone(freq, 'sine', 0.25, 0.1), idx * 120);
+        });
+      }
+
+      playBossAlarm() {
+        for (let i = 0; i < 4; i++) {
+          setTimeout(() => {
+            this.playTone(740, 'sawtooth', 0.15, 0.2);
+            setTimeout(() => this.playTone(554, 'sawtooth', 0.2, 0.2), 160);
+          }, i * 360);
+        }
+      }
+
+      startBGM(isBoss = false) {
+        if (!this.soundEnabled || !this.ctx) return;
+        this.stopBGM();
+        this.isBossBGM = isBoss;
+        this.bgmStep = 0;
+        this.bgmTempo = isBoss ? 150 : 128;
+        const intervalMs = (60 / this.bgmTempo) * 1000 / 2; // 8分音符間隔
+
+        this.bgmTimer = setInterval(() => {
+          this.stepBGM();
+        }, intervalMs);
+      }
+
+      stepBGM() {
+        if (!this.soundEnabled || !this.ctx) return;
+        const s = this.bgmStep % 16;
+
+        if (this.isBossBGM) {
+          // ボス専用：不気味で緊張感のあるトライトーン（悪魔の音程）・ダークベース
+          const darkBassNotes = [73.42, 69.30, 73.42, 65.41, 73.42, 69.30, 77.78, 69.30];
+          const bassFreq = darkBassNotes[s % darkBassNotes.length];
+          this.playTone(bassFreq, 'sawtooth', 0.18, 0.08);
+
+          // 悪魔の音程（F# - C / B - F）トライトーンリード
+          const bossLead = [370.0, 0, 493.88, 0, 523.25, 0, 370.0, 392.0];
+          const leadFreq = bossLead[s % bossLead.length];
+          if (leadFreq > 0) {
+            this.playTone(leadFreq, 'triangle', 0.22, 0.06);
+          }
+
+          // 重い心拍キック音
+          if (s % 4 === 0) {
+            this.playTone(55, 'sine', 0.2, 0.15, -30);
+          }
+        } else {
+          // 通常戦闘：グルーヴィーなサイバーパンク・シンセウェーブ
+          const bassNotes = [110, 110, 130.81, 110, 146.83, 110, 164.81, 130.81];
+          const bassFreq = bassNotes[s % bassNotes.length];
+          this.playTone(bassFreq, 'triangle', 0.15, 0.07);
+
+          // きらびやかなアルペジオメロディ
+          const melody = [440, 0, 523.25, 659.25, 587.33, 0, 440, 523.25];
+          const mFreq = melody[s % melody.length];
+          if (mFreq > 0) {
+            this.playTone(mFreq, 'sine', 0.18, 0.04);
+          }
+
+          // リズムパーカッション（8分音符ハイハット）
+          if (s % 2 === 0) {
+            this.playTone(1800, 'square', 0.02, 0.015);
+          }
+        }
+
+        this.bgmStep++;
+      }
+
+      pauseBGM() {
+        if (this.bgmTimer) {
+          clearInterval(this.bgmTimer);
+          this.bgmTimer = null;
+        }
+      }
+
+      resumeBGM() {
+        if (this.soundEnabled && !this.bgmTimer) {
+          this.startBGM(this.isBossBGM);
+        }
+      }
+
+      stopBGM() {
+        if (this.bgmTimer) {
+          clearInterval(this.bgmTimer);
+          this.bgmTimer = null;
+        }
+        this.isBossBGM = false;
+      }
+    }
+
+    const sound = new RetroSoundSystem();
+
+    /* ==========================================================
+       3. UI要素と状態管理
+       ========================================================== */
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    const scoreText = document.getElementById('scoreText');
+    const comboText = document.getElementById('comboText');
+    const waveText = document.getElementById('waveText');
+    const diffBadgeText = document.getElementById('diffBadgeText');
+    const livesContainer = document.getElementById('livesContainer');
+    const kanjiInput = document.getElementById('kanjiInput');
+    const fireBtn = document.getElementById('fireBtn');
+    const soundToggleBtn = document.getElementById('soundToggleBtn');
+    const pauseBtn = document.getElementById('pauseBtn');
+    const activeInvaderList = document.getElementById('activeInvaderList');
+
+    const gameOverlay = document.getElementById('gameOverlay');
+    const overlayTitle = document.getElementById('overlayTitle');
+    const overlayDesc = document.getElementById('overlayDesc');
+    const overlayIcon = document.getElementById('overlayIcon');
+    const startBtn = document.getElementById('startBtn');
+    const dangerBanner = document.getElementById('dangerBanner');
+    const bossAlertBanner = document.getElementById('bossAlertBanner');
+    const bossAlertName = document.getElementById('bossAlertName');
+    const difficultySelector = document.getElementById('difficultySelector');
+    const diffButtons = document.querySelectorAll('.diff-btn');
+
+    // 難易度ごとのハイスコア管理
+    const highScores = {
+      easy: 0,
+      normal: 0,
+      hard: 0
+    };
+
+    function updateHighScoreDisplay() {
+      document.getElementById('hiScore-easy').textContent = `HI: ${highScores.easy}`;
+      document.getElementById('hiScore-normal').textContent = `HI: ${highScores.normal}`;
+      document.getElementById('hiScore-hard').textContent = `HI: ${highScores.hard}`;
+    }
+
+    // 難易度設定
+    let currentDifficulty = 'normal'; // 'easy' | 'normal' | 'hard'
+    const DIFFICULTY_CONFIGS = {
+      easy: {
+        label: '初級',
+        baseSpeed: 0.32,
+        spawnInterval: 4000,
+        showHint: true,
+        scoreMultiplier: 1.0,
+        pool: KANJI_EASY
+      },
+      normal: {
+        label: '中級',
+        baseSpeed: 0.45,
+        spawnInterval: 3100,
+        showHint: true,
+        scoreMultiplier: 1.2,
+        pool: [...KANJI_EASY, ...KANJI_MEDIUM_EXT]
+      },
+      hard: {
+        label: '上級',
+        baseSpeed: 0.65,
+        spawnInterval: 2200,
+        showHint: false, // 読みヒント非表示
+        scoreMultiplier: 1.5,
+        pool: [...KANJI_EASY, ...KANJI_MEDIUM_EXT, ...KANJI_HARD_EXT]
+      }
+    };
+
+    // 難易度選択ボタンイベント
+    diffButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        currentDifficulty = btn.getAttribute('data-diff');
+        updateDiffButtonStyles();
+        updateDiffBadge();
+      });
+    });
+
+    function updateDiffButtonStyles() {
+      diffButtons.forEach(btn => {
+        const diff = btn.getAttribute('data-diff');
+        if (diff === currentDifficulty) {
+          btn.className = 'diff-btn py-1.5 px-2 rounded-xl border-2 border-emerald-400 bg-emerald-950/70 text-xs font-bold text-emerald-300 transition shadow-[0_0_10px_rgba(0,255,204,0.3)] flex flex-col items-center';
+        } else {
+          btn.className = 'diff-btn py-1.5 px-2 rounded-xl border border-stone-700 bg-stone-900/80 text-xs font-bold text-stone-400 transition hover:border-stone-500 flex flex-col items-center';
+        }
+      });
+    }
+
+    function updateDiffBadge() {
+      if (!diffBadgeText) return;
+      const conf = DIFFICULTY_CONFIGS[currentDifficulty];
+      diffBadgeText.textContent = conf.label;
+      if (currentDifficulty === 'hard') {
+        diffBadgeText.className = 'text-xs sm:text-sm font-bold px-2 py-0.5 rounded-lg bg-rose-950/90 border border-rose-500/70 text-rose-300 font-arcade shadow-[0_0_8px_rgba(255,0,127,0.3)]';
+      } else if (currentDifficulty === 'easy') {
+        diffBadgeText.className = 'text-xs sm:text-sm font-bold px-2 py-0.5 rounded-lg bg-sky-950/90 border border-sky-500/70 text-sky-300 font-arcade shadow-[0_0_8px_rgba(56,189,248,0.3)]';
+      } else {
+        diffBadgeText.className = 'text-xs sm:text-sm font-bold px-2 py-0.5 rounded-lg bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 font-arcade shadow-[0_0_8px_rgba(0,255,204,0.3)]';
+      }
+    }
+
+    // ゲーム状態
+    let isPlaying = false;
+    let isPaused = false;
+    let score = 0;
+    let combo = 0;
+    let maxCombo = 0;
+    let lives = 3;
+    let wave = 1;
+    let invadersDestroyed = 0;
+
+    let invaders = [];
+    let lasers = [];
+    let particles = [];
+    let floatingTexts = [];
+
+    let lastSpawnTime = 0;
+    let spawnInterval = 3100;
+    let defenseY = 0;
+
+    // 背景描画用の星空と流れ星データ
+    let stars = [];
+    let shootingStars = [];
+    let gridOffset = 0;
+
+    /* ==========================================================
+       4. リッチ背景描画システム
+       ========================================================== */
+    function initBackgroundStars(width, height) {
+      stars = [];
+      const starCount = 80;
+      for (let i = 0; i < starCount; i++) {
+        stars.push({
+          x: Math.random() * width,
+          y: Math.random() * height,
+          size: Math.random() * 1.8 + 0.4,
+          alpha: Math.random() * 0.7 + 0.3,
+          speed: Math.random() * 0.2 + 0.05,
+          color: Math.random() > 0.6 ? '#00ffcc' : (Math.random() > 0.5 ? '#ff007f' : '#ffffff')
+        });
+      }
+    }
+
+    function createShootingStar(width, height) {
+      if (Math.random() < 0.015 && shootingStars.length < 2) {
+        shootingStars.push({
+          x: Math.random() * width,
+          y: Math.random() * (height * 0.4),
+          len: Math.random() * 60 + 30,
+          speed: Math.random() * 7 + 5,
+          angle: (Math.PI / 4) + (Math.random() - 0.5) * 0.2,
+          life: 1.0
+        });
+      }
+    }
+
+    function drawRichBackground(width, height) {
+      // 1. 深宇宙グラデーション背景
+      const skyGrad = ctx.createLinearGradient(0, 0, 0, height);
+      skyGrad.addColorStop(0, '#03050d');
+      skyGrad.addColorStop(0.65, '#070b1a');
+      skyGrad.addColorStop(1, '#0e081c');
+      ctx.fillStyle = skyGrad;
+      ctx.fillRect(0, 0, width, height);
+
+      // 2. 星雲（ネビュラ）ラジアルグロー
+      const nebula = ctx.createRadialGradient(width * 0.5, height * 0.25, 10, width * 0.5, height * 0.25, width * 0.6);
+      nebula.addColorStop(0, 'rgba(0, 255, 204, 0.09)');
+      nebula.addColorStop(0.5, 'rgba(180, 0, 255, 0.06)');
+      nebula.addColorStop(1, 'transparent');
+      ctx.fillStyle = nebula;
+      ctx.fillRect(0, 0, width, height);
+
+      // 3. 星々の描画・明滅
+      stars.forEach(s => {
+        s.y += s.speed;
+        if (s.y > height) {
+          s.y = 0;
+          s.x = Math.random() * width;
+        }
+        ctx.fillStyle = s.color;
+        ctx.globalAlpha = s.alpha * (0.6 + 0.4 * Math.sin(Date.now() * 0.003 + s.x));
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      ctx.globalAlpha = 1.0;
+
+      // 4. 流れ星の描画と更新
+      createShootingStar(width, height);
+      for (let i = shootingStars.length - 1; i >= 0; i--) {
+        const ss = shootingStars[i];
+        ctx.strokeStyle = `rgba(0, 255, 204, ${ss.life})`;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(ss.x, ss.y);
+        ctx.lineTo(ss.x - Math.cos(ss.angle) * ss.len, ss.y - Math.sin(ss.angle) * ss.len);
+        ctx.stroke();
+
+        ss.x += Math.cos(ss.angle) * ss.speed;
+        ss.y += Math.sin(ss.angle) * ss.speed;
+        ss.life -= 0.025;
+        if (ss.life <= 0) shootingStars.splice(i, 1);
+      }
+
+      // 5. 遠景のサイバーシティー・スカイライン
+      const horizonY = defenseY - 8;
+      ctx.fillStyle = '#060a14';
+      const buildingWidths = [28, 40, 22, 55, 32, 45, 60, 25, 38, 48, 50, 30, 42];
+      let bX = 0;
+      let bIdx = 0;
+      while (bX < width) {
+        const bw = buildingWidths[bIdx % buildingWidths.length];
+        const bh = 15 + ((bIdx * 37) % 35);
+        ctx.fillRect(bX, horizonY - bh, bw, bh);
+        // ビルの窓の光
+        if (bIdx % 2 === 0) {
+          ctx.fillStyle = 'rgba(0, 255, 204, 0.25)';
+          ctx.fillRect(bX + 4, horizonY - bh + 4, bw - 8, 2);
+          ctx.fillStyle = '#060a14';
+        }
+        bX += bw + 3;
+        bIdx++;
+      }
+
+      // 6. パースペクティブ・サイバーネオングリッド（地面）
+      ctx.save();
+      ctx.strokeStyle = 'rgba(0, 255, 170, 0.22)';
+      ctx.lineWidth = 1;
+
+      // 水平線
+      ctx.beginPath();
+      ctx.moveTo(0, horizonY);
+      ctx.lineTo(width, horizonY);
+      ctx.stroke();
+
+      // 地平線から手前に広がる縦のパース線
+      const vanishX = width / 2;
+      const numLines = 14;
+      for (let i = -numLines; i <= numLines; i++) {
+        const groundX = vanishX + (i * (width / numLines) * 1.4);
+        ctx.beginPath();
+        ctx.moveTo(vanishX, horizonY);
+        ctx.lineTo(groundX, height);
+        ctx.stroke();
+      }
+
+      // 手前に向かってスクロールする横グリッド線
+      gridOffset = (gridOffset + 0.4) % 18;
+      let curY = horizonY;
+      let gap = 3;
+      while (curY < height) {
+        const drawY = curY + (gridOffset * (curY - horizonY) / (height - horizonY + 1));
+        if (drawY <= height && drawY >= horizonY) {
+          ctx.strokeStyle = `rgba(0, 255, 170, ${0.1 + (drawY - horizonY) / (height - horizonY) * 0.3})`;
+          ctx.beginPath();
+          ctx.moveTo(0, drawY);
+          ctx.lineTo(width, drawY);
+          ctx.stroke();
+        }
+        gap *= 1.35;
+        curY += gap;
+      }
+      ctx.restore();
+
+      // 7. 防衛ライン（シールドゲート）
+      ctx.save();
+      ctx.strokeStyle = '#00ffcc';
+      ctx.shadowColor = '#00ffcc';
+      ctx.shadowBlur = 10;
+      ctx.lineWidth = 2.5;
+      ctx.setLineDash([8, 6]);
+      ctx.beginPath();
+      ctx.moveTo(0, defenseY);
+      ctx.lineTo(width, defenseY);
+      ctx.stroke();
+      ctx.restore();
+
+      // 防衛キャノン台座
+      const cannonX = width / 2;
+      ctx.save();
+      ctx.fillStyle = '#00ffcc';
+      ctx.shadowColor = '#00ffcc';
+      ctx.shadowBlur = 12;
+
+      // キャノンベース
+      ctx.beginPath();
+      ctx.arc(cannonX, defenseY + 18, 22, Math.PI, 0, false);
+      ctx.fill();
+
+      // キャノン砲塔
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(cannonX - 4, defenseY - 10, 8, 16);
+      ctx.restore();
+    }
+
+    /* ==========================================================
+       5. インベーダー & パーティクル クラス定義
+       ========================================================== */
+    class KanjiInvader {
+      constructor(data, x, y, speedY, maxHp = 1) {
+        this.data = data;
+        this.x = x;
+        this.y = y;
+        this.speedY = speedY;
+        this.maxHp = maxHp;
+        this.hp = maxHp;
+        this.isBoss = maxHp > 1;
+        this.defeated = false;
+        this.radius = this.isBoss ? 38 : 22;
+        this.pulse = Math.random() * Math.PI * 2;
+        this.hitFlash = 0;
+      }
+
+      update() {
+        this.y += this.speedY;
+        this.pulse += 0.05;
+        if (this.hitFlash > 0) this.hitFlash--;
+      }
+
+      draw() {
+        if (this.defeated) return; // 撃破済みの場合は描画しない
+
+        ctx.save();
+        ctx.translate(this.x, this.y);
+
+        const floatOffset = Math.sin(this.pulse) * 3;
+        ctx.translate(0, floatOffset);
+
+        if (this.isBoss) {
+          // --- 巨大ボスインベーダーの描画 ---
+          ctx.shadowBlur = 15;
+          ctx.shadowColor = this.hitFlash > 0 ? '#ffffff' : '#ff0055';
+
+          // ボス専用重装甲UFOフレーム
+          ctx.fillStyle = this.hitFlash > 0 ? '#ffffff' : '#4a041f';
+          ctx.strokeStyle = this.hitFlash > 0 ? '#ffffff' : '#ff007f';
+          ctx.lineWidth = 3;
+
+          ctx.beginPath();
+          ctx.moveTo(-this.radius * 1.3, 0);
+          ctx.lineTo(-this.radius * 0.8, -this.radius * 0.6);
+          ctx.lineTo(this.radius * 0.8, -this.radius * 0.6);
+          ctx.lineTo(this.radius * 1.3, 0);
+          ctx.lineTo(this.radius * 0.9, this.radius * 0.7);
+          ctx.lineTo(-this.radius * 0.9, this.radius * 0.7);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+
+          // ボス・サイドスラスター（ツインバーニア）
+          ctx.fillStyle = '#ff00aa';
+          ctx.fillRect(-this.radius * 1.1, -this.radius * 0.2, 5, 12);
+          ctx.fillRect(this.radius * 1.1 - 5, -this.radius * 0.2, 5, 12);
+
+          // コクピットコア
+          ctx.fillStyle = '#1a0510';
+          ctx.beginPath();
+          ctx.arc(0, 0, this.radius * 0.75, 0, Math.PI * 2);
+          ctx.fill();
+
+          // ボス漢字文字
+          ctx.fillStyle = '#ffebf3';
+          ctx.font = '900 24px "Zen Kaku Gothic New", sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.shadowColor = '#ff0055';
+          ctx.shadowBlur = 10;
+          ctx.fillText(this.data.kanji, 0, 0);
+
+          // ボスHPゲージ
+          const barW = this.radius * 1.8;
+          const barH = 5;
+          const hpRatio = Math.max(0, this.hp / this.maxHp);
+          ctx.fillStyle = '#330815';
+          ctx.fillRect(-barW / 2, -this.radius * 0.85, barW, barH);
+          ctx.fillStyle = hpRatio > 0.4 ? '#ff007f' : '#ff3333';
+          ctx.fillRect(-barW / 2, -this.radius * 0.85, barW * hpRatio, barH);
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(-barW / 2, -this.radius * 0.85, barW, barH);
+
+          // ボス読み仮名ヒント（上級以外）
+          if (DIFFICULTY_CONFIGS[currentDifficulty].showHint) {
+            ctx.shadowBlur = 0;
+            ctx.font = 'bold 10px monospace';
+            ctx.fillStyle = '#ffd1dc';
+            ctx.fillText(this.data.hint, 0, this.radius * 0.95);
+          }
+
+        } else {
+          // --- 通常漢字インベーダーの描画 ---
+          ctx.shadowBlur = 10;
+          ctx.shadowColor = this.hitFlash > 0 ? '#ffffff' : '#00ffcc';
+
+          // レトロUFO円盤
+          ctx.fillStyle = this.hitFlash > 0 ? '#ffffff' : '#082528';
+          ctx.strokeStyle = this.hitFlash > 0 ? '#ffffff' : '#00ffcc';
+          ctx.lineWidth = 2;
+
+          ctx.beginPath();
+          ctx.ellipse(0, 0, this.radius * 1.1, this.radius * 0.7, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+
+          // コックピットドーム
+          ctx.fillStyle = '#0f4848';
+          ctx.beginPath();
+          ctx.arc(0, -this.radius * 0.2, this.radius * 0.6, Math.PI, 0, false);
+          ctx.fill();
+
+          // 漢字文字本体
+          ctx.fillStyle = '#ffffff';
+          ctx.font = 'bold 19px "Zen Kaku Gothic New", sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.shadowColor = '#00ffcc';
+          ctx.shadowBlur = 8;
+          ctx.fillText(this.data.kanji, 0, -1);
+
+          // 読みヒント（初級・中級のみ表示）
+          if (DIFFICULTY_CONFIGS[currentDifficulty].showHint) {
+            ctx.shadowBlur = 0;
+            ctx.font = 'bold 10px monospace';
+            ctx.fillStyle = '#a7f3d0';
+            ctx.fillText(this.data.hint, 0, this.radius * 0.88);
+          }
+        }
+
+        ctx.restore();
+      }
+    }
+
+    class Laser {
+      constructor(startX, startY, targetX, targetY) {
+        this.x = startX;
+        this.y = startY;
+        this.targetX = targetX;
+        this.targetY = targetY;
+        const angle = Math.atan2(targetY - startY, targetX - startX);
+        const speed = 28;
+        this.vx = Math.cos(angle) * speed;
+        this.vy = Math.sin(angle) * speed;
+        this.dead = false;
+      }
+
+      update() {
+        this.x += this.vx;
+        this.y += this.vy;
+        const dist = Math.hypot(this.targetX - this.x, this.targetY - this.y);
+        if (dist < 30 || this.y < -20) {
+          this.dead = true;
+        }
+      }
+
+      draw() {
+        ctx.save();
+        ctx.strokeStyle = '#00ffcc';
+        ctx.shadowColor = '#00ffcc';
+        ctx.shadowBlur = 12;
+        ctx.lineWidth = 3.5;
+        ctx.beginPath();
+        ctx.moveTo(this.x, this.y);
+        ctx.lineTo(this.x - this.vx * 0.8, this.y - this.vy * 0.8);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    class Particle {
+      constructor(x, y, color) {
+        this.x = x;
+        this.y = y;
+        this.color = color;
+        const angle = Math.random() * Math.PI * 2;
+        const speed = Math.random() * 5 + 2;
+        this.vx = Math.cos(angle) * speed;
+        this.vy = Math.sin(angle) * speed;
+        this.alpha = 1.0;
+        this.decay = Math.random() * 0.03 + 0.02;
+        this.size = Math.random() * 3 + 2;
+      }
+
+      update() {
+        this.x += this.vx;
+        this.y += this.vy;
+        this.alpha -= this.decay;
+      }
+
+      draw() {
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, this.alpha);
+        ctx.fillStyle = this.color;
+        ctx.shadowColor = this.color;
+        ctx.shadowBlur = 8;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    class FloatingText {
+      constructor(text, x, y, color = '#00ffcc') {
+        this.text = text;
+        this.x = x;
+        this.y = y;
+        this.color = color;
+        this.alpha = 1.0;
+        this.vy = -1.2;
+      }
+
+      update() {
+        this.y += this.vy;
+        this.alpha -= 0.022;
+      }
+
+      draw() {
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, this.alpha);
+        ctx.fillStyle = this.color;
+        ctx.font = 'bold 14px "Press Start 2P", monospace';
+        ctx.textAlign = 'center';
+        ctx.shadowColor = this.color;
+        ctx.shadowBlur = 8;
+        ctx.fillText(this.text, this.x, this.y);
+        ctx.restore();
+      }
+    }
+
+    /* ==========================================================
+       6. スポーン & スコア計算ロジック
+       ========================================================== */
+    function spawnBossFleet() {
+      const rect = canvas.getBoundingClientRect();
+      const config = DIFFICULTY_CONFIGS[currentDifficulty];
+
+      let bossCount = 1;
+      if (wave >= 4) {
+        bossCount = (currentDifficulty === 'hard') ? 4 : 3;
+      } else if (wave >= 2) {
+        bossCount = 2;
+      }
+
+      const availableBossList = [...BOSS_KANJI].sort(() => 0.5 - Math.random());
+      const spawnedBossNames = [];
+
+      for (let i = 0; i < bossCount; i++) {
+        const bossData = availableBossList[i % availableBossList.length];
+        spawnedBossNames.push(bossData.kanji);
+
+        const sectionWidth = rect.width / (bossCount + 1);
+        const x = sectionWidth * (i + 1) + (Math.random() - 0.5) * 20;
+        const y = -45 - (i * 35);
+
+        const speedY = (config.baseSpeed * 0.65) + (wave * 0.035);
+        const boss = new KanjiInvader(bossData, x, y, speedY, 3);
+        invaders.push(boss);
+      }
+
+      sound.playBossAlarm();
+      sound.startBGM(true);
+
+      bossAlertName.textContent = bossCount === 1 
+        ? `【${spawnedBossNames[0]}】が出現！` 
+        : `【ボス編隊×${bossCount}機: ${spawnedBossNames.join('・')}】が襲来！`;
+
+      bossAlertBanner.classList.remove('hidden');
+      setTimeout(() => {
+        bossAlertBanner.classList.add('hidden');
+      }, 2400);
+
+      updateTargetHint();
+    }
+
+    function spawnInvader() {
+      const rect = canvas.getBoundingClientRect();
+      const config = DIFFICULTY_CONFIGS[currentDifficulty];
+      const pool = config.pool;
+
+      const item = pool[Math.floor(Math.random() * pool.length)];
+      const margin = 35;
+      const x = Math.random() * (rect.width - margin * 2) + margin;
+      const y = -25;
+      const speedY = config.baseSpeed + (wave * 0.04) + (Math.random() * 0.1);
+
+      invaders.push(new KanjiInvader(item, x, y, speedY, 1));
+      updateTargetHint();
+    }
+
+    // 高度に応じたスコア計算（上方20%で100点、下方20%で20点、中間は線形補間）
+    function calculateAltitudeScore(y, maxY) {
+      const ratio = Math.max(0, Math.min(1, y / maxY));
+      let basePoint = 20;
+
+      if (ratio <= 0.2) {
+        basePoint = 100;
+      } else if (ratio >= 0.8) {
+        basePoint = 20;
+      } else {
+        const factor = (ratio - 0.2) / 0.6; // 0.0 ~ 1.0
+        basePoint = Math.round(100 - (factor * 80));
+      }
+
+      const conf = DIFFICULTY_CONFIGS[currentDifficulty];
+      return Math.round(basePoint * conf.scoreMultiplier);
+    }
+
+    function createExplosion(x, y, isBoss = false) {
+      const count = isBoss ? 45 : 18;
+      const colors = isBoss ? ['#ff0055', '#ff00aa', '#ffd1dc', '#ffff00'] : ['#00ffcc', '#00ff88', '#ffffff', '#38bdf8'];
+      for (let i = 0; i < count; i++) {
+        const color = colors[Math.floor(Math.random() * colors.length)];
+        particles.push(new Particle(x, y, color));
+      }
+    }
+
+    function onInvaderDefeated(inv) {
+      inv.defeated = true;
+      invadersDestroyed++;
+      combo++;
+      if (combo > maxCombo) maxCombo = combo;
+
+      const comboMultiplier = Math.min(10, 1 + Math.floor(combo / 2) * 0.5);
+      const altScore = calculateAltitudeScore(inv.y, defenseY);
+      const addedScore = Math.round(altScore * comboMultiplier);
+      score += addedScore;
+
+      createExplosion(inv.x, inv.y, inv.isBoss);
+
+      let altitudeLabel = '';
+      const ratio = inv.y / defenseY;
+      if (ratio <= 0.2) altitudeLabel = 'TOP! ';
+      else if (ratio >= 0.8) altitudeLabel = 'LOW ';
+
+      floatingTexts.push(new FloatingText(`${altitudeLabel}+${addedScore}`, inv.x, inv.y - 15, inv.isBoss ? '#ff0055' : '#00ffcc'));
+      if (combo > 1) {
+        floatingTexts.push(new FloatingText(`${combo} COMBO!`, inv.x, inv.y + 5, '#ffcc00'));
+      }
+
+      // 撃墜されたインベーダーを配列から即時消去
+      const idx = invaders.indexOf(inv);
+      if (idx !== -1) {
+        invaders.splice(idx, 1);
+      }
+
+      // ボス討伐判定とBGM復帰
+      const remainingBosses = invaders.filter(i => !i.defeated && i.isBoss);
+      if (inv.isBoss && remainingBosses.length === 0) {
+        sound.startBGM(false);
+      }
+
+      // 8体撃墜ごとにボス戦突入
+      if (invadersDestroyed > 0 && invadersDestroyed % 8 === 0) {
+        setTimeout(spawnBossFleet, 900);
+      }
+
+      // ウェーブ進行チェック（12体倒すごとに次ウェーブへ）
+      if (invadersDestroyed % 12 === 0) {
+        wave++;
+        spawnInterval = Math.max(1400, spawnInterval - 250);
+        sound.playWaveClear();
+        floatingTexts.push(new FloatingText(`WAVE ${wave} START!`, rect().width / 2, rect().height / 2, '#00ffcc'));
+      }
+
+      updateHUD();
+      updateTargetHint();
+    }
+
+    function rect() {
+      return canvas.getBoundingClientRect();
+    }
+
+    /* ==========================================================
+       7. 入力判定・迎撃システム
+       ========================================================== */
+    function checkAndFireInput() {
+      const rawInput = kanjiInput.value.trim();
+      if (!rawInput || !isPlaying || isPaused) return;
+
+      const input = rawInput.toLowerCase();
+      let matchedIndex = -1;
+      let highestY = -9999;
+
+      for (let i = 0; i < invaders.length; i++) {
+        const inv = invaders[i];
+        if (inv.defeated) continue;
+
+        const kanjiMatch = inv.data.kanji === rawInput;
+        const readingMatch = inv.data.readings.some(r => r === input);
+        const romajiMatch = inv.data.romaji && inv.data.romaji.some(rom => rom === input);
+
+        if (kanjiMatch || readingMatch || romajiMatch) {
+          if (inv.y > highestY) {
+            highestY = inv.y;
+            matchedIndex = i;
+          }
+        }
+      }
+
+      if (matchedIndex !== -1) {
+        const target = invaders[matchedIndex];
+        const cannonX = canvas.getBoundingClientRect().width / 2;
+        lasers.push(new Laser(cannonX, defenseY - 8, target.x, target.y));
+        sound.playLaser();
+
+        target.hp--;
+        target.hitFlash = 6;
+
+        if (target.hp <= 0) {
+          sound.playExplosion();
+          onInvaderDefeated(target);
+        } else {
+          sound.playBossHit();
+          floatingTexts.push(new FloatingText('HIT!', target.x, target.y - 15, '#ff0055'));
+        }
+      }
+
+      // 迎撃成否に関わらず入力欄を即座にリセット
+      kanjiInput.value = '';
+    }
+
+    // IME変換確定状態を追跡
+    let isComposing = false;
+    kanjiInput.addEventListener('compositionstart', () => { isComposing = true; });
+    kanjiInput.addEventListener('compositionend', () => {
+      isComposing = false;
+      // 確定後即時チェック
+      setTimeout(checkAndFireInput, 10);
+    });
+
+    kanjiInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        if (!isComposing) {
+          e.preventDefault();
+          checkAndFireInput();
+        }
+      }
+    });
+
+    fireBtn.addEventListener('click', () => {
+      checkAndFireInput();
+      kanjiInput.focus();
+    });
+
+    function updateTargetHint() {
+      const activeKanji = invaders.filter(i => !i.defeated).map(i => i.data.kanji);
+      if (activeKanji.length > 0) {
+        activeInvaderList.textContent = activeKanji.join(' ');
+      } else {
+        activeInvaderList.textContent = '警戒中...';
+      }
+    }
+
+    /* ==========================================================
+       8. HUD & ライフ表示更新
+       ========================================================== */
+    function updateHUD() {
+      scoreText.textContent = String(score).padStart(5, '0');
+      comboText.textContent = `x${Math.max(1, combo)}`;
+      waveText.textContent = String(wave).padStart(2, '0');
+
+      let hearts = '';
+      for (let i = 0; i < 3; i++) {
+        if (i < lives) {
+          hearts += '<i class="fa-solid fa-shield-heart"></i> ';
+        } else {
+          hearts += '<i class="fa-regular fa-shield text-stone-600"></i> ';
+        }
+      }
+      livesContainer.innerHTML = hearts;
+    }
+
+    /* ==========================================================
+       9. メインゲームループ
+       ========================================================== */
+    let lastTime = performance.now();
+
+    function gameLoop(now) {
+      lastTime = now;
+
+      const width = canvas.width;
+      const height = canvas.height;
+      defenseY = height - 42;
+
+      // 背景の描画
+      drawRichBackground(width, height);
+
+      if (isPlaying && !isPaused) {
+        // インベーダーの自動スポーン
+        if (now - lastSpawnTime > spawnInterval) {
+          spawnInvader();
+          lastSpawnTime = now;
+        }
+
+        // 危険アラートの表示判定
+        const isDanger = invaders.some(i => !i.defeated && i.y > defenseY - 80);
+        if (isDanger) {
+          dangerBanner.classList.remove('hidden');
+        } else {
+          dangerBanner.classList.add('hidden');
+        }
+
+        // レーザーの更新・描画
+        for (let i = lasers.length - 1; i >= 0; i--) {
+          lasers[i].update();
+          lasers[i].draw();
+          if (lasers[i].dead) lasers.splice(i, 1);
+        }
+
+        // インベーダーの更新・描画
+        for (let i = invaders.length - 1; i >= 0; i--) {
+          const inv = invaders[i];
+          inv.update();
+          inv.draw();
+
+          // 防衛ライン突破チェック
+          if (inv.y >= defenseY && !inv.defeated) {
+            inv.defeated = true;
+            lives--;
+            sound.playDamage();
+            createExplosion(inv.x, inv.y);
+            floatingTexts.push(new FloatingText('SHIELD BREACH!', width / 2, defenseY - 20, '#ff0055'));
+            combo = 0;
+            updateHUD();
+
+            // 突破された敵も即座に消去
+            invaders.splice(i, 1);
+
+            if (lives <= 0) {
+              gameOver();
+            }
+          }
+        }
+
+        // パーティクルの更新・描画
+        for (let i = particles.length - 1; i >= 0; i--) {
+          particles[i].update();
+          particles[i].draw();
+          if (particles[i].alpha <= 0) particles.splice(i, 1);
+        }
+
+        // 浮遊テキストの更新・描画
+        for (let i = floatingTexts.length - 1; i >= 0; i--) {
+          floatingTexts[i].update();
+          floatingTexts[i].draw();
+          if (floatingTexts[i].alpha <= 0) floatingTexts.splice(i, 1);
+        }
+      }
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    /* ==========================================================
+       10. ゲーム進行コントロール
+       ========================================================== */
+    function startGame() {
+      sound.init();
+      isPlaying = true;
+      isPaused = false;
+      score = 0;
+      combo = 0;
+      maxCombo = 0;
+      lives = 3;
+      wave = 1;
+      invadersDestroyed = 0;
+
+      invaders = [];
+      lasers = [];
+      particles = [];
+      floatingTexts = [];
+
+      const config = DIFFICULTY_CONFIGS[currentDifficulty];
+      spawnInterval = config.spawnInterval;
+      lastSpawnTime = performance.now();
+
+      updateHUD();
+      updateDiffBadge();
+      updateTargetHint();
+
+      kanjiInput.disabled = false;
+      kanjiInput.value = '';
+      kanjiInput.focus();
+
+      gameOverlay.classList.add('hidden');
+      difficultySelector.classList.remove('hidden');
+
+      sound.startBGM(false);
+    }
+
+    function gameOver() {
+      isPlaying = false;
+      sound.stopBGM();
+      kanjiInput.disabled = true;
+      dangerBanner.classList.add('hidden');
+      bossAlertBanner.classList.add('hidden');
+      difficultySelector.classList.remove('hidden');
+
+      let isNewRecord = false;
+      if (score > highScores[currentDifficulty]) {
+        highScores[currentDifficulty] = score;
+        isNewRecord = true;
+      }
+      updateHighScoreDisplay();
+
+      overlayIcon.className = 'fa-solid fa-skull text-rose-500';
+      overlayTitle.textContent = isNewRecord ? 'NEW HIGH SCORE!' : 'GAME OVER';
+      overlayTitle.className = isNewRecord
+        ? 'text-2xl sm:text-3xl font-bold mb-2 neon-text-green text-amber-300 tracking-wider'
+        : 'text-2xl sm:text-3xl font-bold mb-2 neon-text-pink text-rose-400 tracking-wider';
+
+      const diffLabel = DIFFICULTY_CONFIGS[currentDifficulty].label;
+      overlayDesc.innerHTML = `
+        防衛ラインが突破されました...<br>
+        難易度: <span class="text-emerald-300 font-bold">${diffLabel}</span> / スコア: <span class="text-emerald-400 font-bold">${score}</span> 点 ${isNewRecord ? '<span class="text-xs px-2 py-0.5 rounded bg-amber-400/20 text-amber-300 font-bold ml-1 border border-amber-400">新記録!</span>' : ''}<br>
+        歴代ハイスコア: <span class="text-amber-300 font-bold">${highScores[currentDifficulty]}</span> 点 / 最大コンボ: <span class="text-amber-400 font-bold">x${maxCombo}</span>
+      `;
+      startBtn.innerHTML = '<i class="fa-solid fa-rotate-right"></i><span>もう一度出撃（RETRY）</span>';
+      gameOverlay.classList.remove('hidden');
+    }
+
+    function quitGame() {
+      isPlaying = false;
+      isPaused = false;
+      sound.stopBGM();
+      kanjiInput.disabled = true;
+      kanjiInput.value = '';
+      dangerBanner.classList.add('hidden');
+      bossAlertBanner.classList.add('hidden');
+      difficultySelector.classList.remove('hidden');
+
+      if (score > highScores[currentDifficulty]) {
+        highScores[currentDifficulty] = score;
+      }
+      updateHighScoreDisplay();
+
+      invaders = [];
+      lasers = [];
+      particles = [];
+      floatingTexts = [];
+
+      score = 0;
+      combo = 0;
+      lives = 3;
+      wave = 1;
+      updateHUD();
+      updateTargetHint();
+
+      pauseBtn.innerHTML = '<i class="fa-solid fa-pause"></i>';
+
+      overlayIcon.className = 'fa-solid fa-shuttle-space';
+      overlayTitle.textContent = '漢字インベーダー';
+      overlayTitle.className = 'text-2xl sm:text-3xl font-bold mb-2 neon-text-green text-emerald-300 tracking-wider';
+      overlayDesc.textContent = '上空から迫る「漢字」の読み（ふりがな・ローマ字・漢字変換）を入力して、地球防衛キャノンから迎撃ビームを発射せよ！';
+      startBtn.innerHTML = '<i class="fa-solid fa-play"></i><span>出撃する（START）</span>';
+
+      gameOverlay.classList.remove('hidden');
+    }
+
+    startBtn.addEventListener('click', () => {
+      if (isPaused) {
+        // ポーズ解除
+        isPaused = false;
+        sound.resumeBGM();
+        pauseBtn.innerHTML = '<i class="fa-solid fa-pause"></i>';
+        gameOverlay.classList.add('hidden');
+        kanjiInput.focus();
+      } else {
+        startGame();
+      }
+    });
+
+    pauseBtn.addEventListener('click', () => {
+      if (!isPlaying) return;
+      isPaused = !isPaused;
+      if (isPaused) {
+        sound.pauseBGM();
+        pauseBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
+        overlayIcon.className = 'fa-solid fa-pause text-amber-400';
+        overlayTitle.textContent = 'PAUSED';
+        overlayTitle.className = 'text-2xl sm:text-3xl font-bold mb-2 text-amber-300 tracking-wider';
+        overlayDesc.textContent = '作戦一時中断中。再開ボタンを押してください。';
+        difficultySelector.classList.add('hidden');
+        startBtn.innerHTML = '<i class="fa-solid fa-play"></i><span>戦闘再開（RESUME）</span>';
+        gameOverlay.classList.remove('hidden');
+      } else {
+        sound.resumeBGM();
+        pauseBtn.innerHTML = '<i class="fa-solid fa-pause"></i>';
+        difficultySelector.classList.remove('hidden');
+        gameOverlay.classList.add('hidden');
+        kanjiInput.focus();
+      }
+    });
+
+    soundToggleBtn.addEventListener('click', () => {
+      sound.soundEnabled = !sound.soundEnabled;
+      if (sound.soundEnabled) {
+        sound.init();
+        soundToggleBtn.innerHTML = '<i class="fa-solid fa-volume-high"></i>';
+        soundToggleBtn.className = 'p-3 bg-stone-900 border border-emerald-500 text-emerald-400 rounded-2xl text-base transition active:scale-95 cursor-pointer';
+        if (isPlaying && !isPaused) sound.resumeBGM();
+      } else {
+        sound.stopBGM();
+        soundToggleBtn.innerHTML = '<i class="fa-solid fa-volume-xmark"></i>';
+        soundToggleBtn.className = 'p-3 bg-stone-900 border border-rose-500 text-rose-400 rounded-2xl text-base transition active:scale-95 cursor-pointer';
+      }
+    });
+
+    function resizeCanvas() {
+      const container = canvas.parentElement;
+      canvas.width = container.clientWidth;
+      canvas.height = container.clientHeight;
+      defenseY = canvas.height - 42;
+      initBackgroundStars(canvas.width, canvas.height);
+    }
+
+    window.addEventListener('resize', resizeCanvas);
+
+    window.onload = () => {
+      resizeCanvas();
+      updateDiffButtonStyles();
+      updateDiffBadge();
+      updateHighScoreDisplay();
+      updateHUD();
+      requestAnimationFrame(gameLoop);
+    };
+  </script>
+</body>
+</html>
